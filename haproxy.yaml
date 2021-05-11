@@ -74,7 +74,7 @@ data:
     	mode tcp
     	balance first
     	option tcp-check
-    	tcp-check send AUTH\ kKwpFLhMQ4\r\n
+    	tcp-check send AUTH\ XXXXXXXX\r\n
     	tcp-check expect string +OK
     	tcp-check send info\ replication\r\n
     	tcp-check expect string role:master
@@ -85,7 +85,7 @@ data:
     	mode tcp
     	balance roundrobin
     	option tcp-check
-    	tcp-check send AUTH\ kKwpFLhMQ4\r\n
+    	tcp-check send AUTH\ XXXXXXXX\r\n
     	tcp-check expect string +OK
     	tcp-check send PING\r\n
     	tcp-check expect string +PONG
