@@ -18,6 +18,80 @@ spec:
   selector:
     app: haproxy
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: haproxy-config
+  namespace: redis
+data:
+  haproxy.cfg: |
+    global
+    	daemon
+    	maxconn 256
+    
+    defaults
+    	mode tcp
+    	timeout connect 5000ms
+    	timeout client 50000ms
+    	timeout server 50000ms
+    
+    
+    frontend http
+    	bind :8080
+    	default_backend stats
+    
+    
+    backend stats
+    	mode http
+    	stats enable
+    
+    	stats enable
+    	stats uri /
+    	stats refresh 1s
+    	stats show-legends
+    	stats admin if TRUE
+    
+    resolvers k8s
+      parse-resolv-conf
+      hold other           10s
+      hold refused         10s
+      hold nx              10s
+      hold timeout         10s
+      hold valid           10s
+      hold obsolete        10s
+    
+    frontend redis-read
+    	bind *:6380
+        default_backend redis-online
+    
+    
+    frontend redis-write
+        bind *:6379
+    	default_backend redis-primary
+    
+    
+    backend redis-primary
+    	mode tcp
+    	balance first
+    	option tcp-check
+    	tcp-check send AUTH\ kKwpFLhMQ4\r\n
+    	tcp-check expect string +OK
+    	tcp-check send info\ replication\r\n
+    	tcp-check expect string role:master
+      server-template redis 3 _tcp-redis._tcp.redis-headless.redis.svc.cluster.local:6379 check inter 1s resolvers k8s init-addr none
+    
+    
+    backend redis-online
+    	mode tcp
+    	balance roundrobin
+    	option tcp-check
+    	tcp-check send AUTH\ kKwpFLhMQ4\r\n
+    	tcp-check expect string +OK
+    	tcp-check send PING\r\n
+    	tcp-check expect string +PONG
+      server-template redis 3 _tcp-redis._tcp.redis-headless.redis.svc.cluster.local:6379 check inter 1s resolvers k8s init-addr none
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -48,12 +122,19 @@ spec:
               topologyKey: "kubernetes.io/hostname"
       containers:
         - name: haproxy
-          image: registry.digitalocean.com/nsci-image-repo/haproxy:latest
+          image: haproxy:2.3
           ports:
             - containerPort: 8080
             - containerPort: 6379
             - containerPort: 6380
-      imagePullSecrets:
-        - name: nsci-image-repo
+          volumeMounts:
+          - name: config
+            mountPath: /usr/local/etc/haproxy/haproxy.cfg
+            subPath: haproxy.cfg
+            readOnly: true
       restartPolicy: Always
+      volumes:
+      - name: config
+        configMap:
+          name: haproxy-config
 
